@@ -35,6 +35,10 @@ def main():
     # scrape all the players' names with index being their projected ranking
     # for each position each year
     playerNames = [[[] for position in positions] for year in years]
+
+    # holds points for that season for all players in playerNames
+    playerPoints = [[[] for position in positions] for year in years]
+
     # loop through each year, each position group within each year and iteration
     # has to do with the way the website stores the rankings (only has 10 per page
     # in some cases) but we have a number we want to reach based on numberRosteredMap
@@ -47,6 +51,7 @@ def main():
                     getPlayerNames(playerNames[yearIndex][positionIndex], numberRosteredMap.get(positions[positionIndex]))
                 except:
                     continue
+            getPlayerPoints(playerNames[yearIndex][positionIndex], playerPoints[yearIndex][positionIndex], years[yearIndex])
 
 def getPreseasonUrl(season, position, iteration):
     # url naming convention for each position
@@ -84,6 +89,23 @@ def getPlayerNames(playerNames, maxLength):
         playerNames.append(text[0:commaIndex])
         index += 1
         count += 1
+    
+def getPlayerPoints(playerNames, playerPoints, year):
+    url ="https://www.pro-football-reference.com/years/{}/fantasy.htm".format(year)
+    driver.get(url)
+    for name in playerNames:
+        formattedName = formatName(name)
+        try:
+            pointTotal = driver.find_element_by_xpath("//table[@id='fantasy']/tbody/tr/td[@csk='{}']/following-sibling::td[25]".format(formattedName))
+            playerPoints.append(int(pointTotal.text))
+        except:
+            playerPoints.append(0)
+
+def formatName(name):
+    spaceIndex = name.index(" ")
+    first = name[:spaceIndex]
+    second = name[spaceIndex+1:]
+    return second + "," + first
 
 main()
 driver.close()
