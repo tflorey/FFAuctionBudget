@@ -14,8 +14,13 @@ options.headless = True
 driver = webdriver.Chrome(ChromeDriverManager().install(), options=options,)
 
 def main():
+
+    # constant value for money available ($200 each for 12 teams)
+    TOTAL_MONEY = 1200
+
     # only positions we care about are these 4 (only ones rosterd in my league)
     positions = ["QB", "RB", "WR", "TE"]
+
     # this information is used for web scraping the preSeason projections
     positionIterationMap = {
         "QB": 3,
@@ -23,6 +28,7 @@ def main():
         "WR": 6,
         "TE": 3
     }
+
     # these are the total expected number of rostered players by position
     # group in my league
     numberRosteredMap = {
@@ -31,6 +37,7 @@ def main():
         "WR": 84,
         "TE": 36
     }
+
     # these are the years for which I want to compare predictions and results
     years = [year for year in range(2011, 2021)]
 
@@ -65,6 +72,20 @@ def main():
             # use list comprehension to subtract the replacement value from each value and set to 0 if replacement > points
             values[yearIndex][positionIndex] = [round(points - replacement, 2) if (points>replacement) else 0 for points in values[yearIndex][positionIndex]] 
 
+    # average all values into one 2d matrix of positions where index is ranking and the points are avg points above replacement 
+    avgPoints = avgValues(values, positions, years)
+
+    # sum up all points in avgPoints
+    totalPoints = sumValues(avgPoints)
+
+    # divide total points by total money to get a dollar to points ratio
+    DOLLAR_TO_POINT_RATIO = round(TOTAL_MONEY / totalPoints, 2)
+    
+    # multiply each points value by the dollar to points ratio to get the avg value in dollars that each position ranking was worth 
+    avgPoints = [[round(DOLLAR_TO_POINT_RATIO * avgPoints[positionIndex][index], 2)
+        for index in range(len(avgPoints[positionIndex]))]
+        for positionIndex in range(len(positions))
+    ]
 
 def getPreseasonUrl(season, position, iteration):
     # url naming convention for each position
@@ -144,5 +165,24 @@ def getReplacementPlayer(position, year, n):
     player = driver.find_element_by_xpath("//table[@id='stats_grid']/tbody/tr[{}]/td[last()]/span".format(n))
     return float(player.text)
 
+# function that averages the points above replacement for each position group ranking over the years calculated
+def avgValues(values, positions, years):
+    avg = [[0 for index in range(len(values[0][positionIndex]))] for positionIndex in range(len(positions))]
+    for positionIndex in range(len(positions)):
+        for index in range(len(values[0][positionIndex])):
+            total = 0
+            for yearIndex in range(len(years)):
+                total += values[yearIndex][positionIndex][index]
+            avg[positionIndex][index] = total / len(years)
+    return avg
+
+def sumValues(values):
+    total = 0
+    for row in values:
+        for val in row:
+            total += val
+
+    return total
+
 main()
-driver.close()
+driver.quit()
