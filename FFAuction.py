@@ -6,6 +6,7 @@ from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
+import time
 
 # create a webdriver and make sure it is up to date
 options = Options()
@@ -32,12 +33,13 @@ def main():
     }
     # these are the years for which I want to compare predictions and results
     years = [year for year in range(2011, 2021)]
-    # scrape all the players' names with index being their projected ranking
-    # for each position each year
-    playerNames = [[[] for position in positions] for year in years]
 
-    # holds points for that season for all players in playerNames
-    playerPoints = [[[] for position in positions] for year in years]
+    # one list of lists called values that holds the value for each player for
+    # each position ranking each year. This will first contain player names
+    # with the index being their preseason projected rank by position group then
+    # it will contain the points actually produced by that player then it will
+    # contain the points above replacement (0 if not above replacement)
+    values = [[[] for position in positions] for year in years]
 
     # loop through each year, each position group within each year and iteration
     # has to do with the way the website stores the rankings (only has 10 per page
@@ -45,13 +47,24 @@ def main():
     for yearIndex in range(len(years)):
         for positionIndex in range(len(positions)):
             for iteration in range(1, positionIterationMap.get(positions[positionIndex]) + 1):
+                # define the url of the preseason rankings page
                 url = getPreseasonUrl(years[yearIndex], positions[positionIndex], iteration)
                 try:
                     driver.get(url)
-                    getPlayerNames(playerNames[yearIndex][positionIndex], numberRosteredMap.get(positions[positionIndex]))
+                    # scrape the names from the page into the values list
+                    getPlayerNames(values[yearIndex][positionIndex], numberRosteredMap.get(positions[positionIndex]))
                 except:
                     continue
-            getPlayerPoints(playerNames[yearIndex][positionIndex], playerPoints[yearIndex][positionIndex], years[yearIndex])
+
+            # scrape the values the players now stored in the values list produced
+            getPlayerPoints(values[yearIndex][positionIndex], years[yearIndex])
+
+            # determine the n + 1 point value for each position group
+            replacement = getReplacementPlayer(positions[positionIndex], years[yearIndex], numberRosteredMap.get(positions[positionIndex]) + 1)
+
+            # use list comprehension to subtract the replacement value from each value and set to 0 if replacement > points
+            values[yearIndex][positionIndex] = [round(points - replacement, 2) if (points>replacement) else 0 for points in values[yearIndex][positionIndex]] 
+
 
 def getPreseasonUrl(season, position, iteration):
     # url naming convention for each position
@@ -90,22 +103,46 @@ def getPlayerNames(playerNames, maxLength):
         index += 1
         count += 1
     
-def getPlayerPoints(playerNames, playerPoints, year):
+def getPlayerPoints(values, year):
     url ="https://www.pro-football-reference.com/years/{}/fantasy.htm".format(year)
     driver.get(url)
-    for name in playerNames:
-        formattedName = formatName(name)
+    for index in range(len(values)):
+        formattedName = formatName(values[index])
         try:
             pointTotal = driver.find_element_by_xpath("//table[@id='fantasy']/tbody/tr/td[@csk='{}']/following-sibling::td[25]".format(formattedName))
-            playerPoints.append(int(pointTotal.text))
+            values[index] = int(pointTotal.text)
         except:
-            playerPoints.append(0)
+            values[index] = 0
 
 def formatName(name):
     spaceIndex = name.index(" ")
     first = name[:spaceIndex]
     second = name[spaceIndex+1:]
     return second + "," + first
+
+def getReplacementPlayer(position, year, n):
+    positionIdMap = {
+        "QB": 2,
+        "RB": 3,
+        "WR": 4,
+        "TE": 5
+    }
+    url = "https://fantasydata.com/nfl/fantasy-football-leaders?position={}&season={}&seasontype=1&scope=1&subscope=1&scoringsystem=1&startweek=1&endweek=1&aggregatescope=1&range=1".format(positionIdMap.get(position), year)
+    driver.get(url)
+    if(n > 50):
+        # button = driver.find_element_by_xpath("//div[@class='stats-grid-container'//grid-footer//div[@class='col-xs-6 col-sm-4 load-more']/a")
+        try:
+            button = driver.find_element_by_xpath("//div[@class='stats-grid-container']//grid-footer//div[@class='col-xs-6 col-sm-4 load-more']/a")
+        except:
+            driver.quit()
+            return
+        # button = driver.find_element_by_xpath("//a[@class='pagesize.selected'][2]")
+        # button = driver.find_element_by_xpath("//div[@class='row grid-footer']/div[@class='col-xs-6 col-sm-4 load-more']/a[1]")
+        driver.execute_script("arguments[0].click();", button)
+        time.sleep(5)
+    
+    player = driver.find_element_by_xpath("//table[@id='stats_grid']/tbody/tr[{}]/td[last()]/span".format(n))
+    return float(player.text)
 
 main()
 driver.close()
