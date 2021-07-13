@@ -7,6 +7,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 import time
+from openpyxl import Workbook
 
 # create a webdriver and make sure it is up to date
 options = Options()
@@ -86,6 +87,9 @@ def main():
         for index in range(len(avgPoints[positionIndex]))]
         for positionIndex in range(len(positions))
     ]
+    
+    # output the values in an easy to read excel sheet that we will reference on draft day
+    exportValues(avgPoints, positions)
 
 def getPreseasonUrl(season, position, iteration):
     # url naming convention for each position
@@ -183,6 +187,25 @@ def sumValues(values):
             total += val
 
     return total
+
+def exportValues(avgValues, positions):
+    wb = Workbook()
+    fileDest = "FFAuctionBudget.xlsx"
+    ws1 = wb.active
+    ws1.title = 'Auction Draft Guide'
+
+    ws1.cell(column=2,row=1,value="Auction Draft Average Value by Position Ranking")
+    for i in range(1, 85):
+        ws1.cell(column = 1, row = i+3, value="{}".format(i))
+
+    for col in range(3, len(positions) + 3):
+        ws1.cell(column=col, row=3, value="{}".format(positions[col-3]))
+    for col in range(3, len(avgValues) + 3):
+        for row in range(4, len(avgValues[col-3]) + 4):
+            ws1.cell(column=col, row=row, value="${}".format(avgValues[col-3][row-4]))
+    
+    wb.save(fileDest)
+
 
 main()
 driver.quit()
