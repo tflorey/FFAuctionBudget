@@ -17,7 +17,7 @@ driver = webdriver.Chrome(ChromeDriverManager().install(), options=options,)
 def main():
 
     # constant value for money available ($200 each for 12 teams)
-    TOTAL_MONEY = 1200
+    TOTAL_MONEY = 12 * 200
 
     # only positions we care about are these 4 (only ones rosterd in my league)
     positions = ["QB", "RB", "WR", "TE"]
@@ -122,6 +122,9 @@ def getPlayerNames(playerNames, maxLength):
         # accounts for error where michael vick's name is removed
         if(text == "QB Eagles No. 7, QB, Eagles. Bye: 7."):
             text = "Michael Vick,"
+        elif("Projected" in text):
+            index += 1
+            continue
         # format the text to have just the first and last name
         commaIndex = text.index(",")
         playerNames.append(text[0:commaIndex])
@@ -167,7 +170,10 @@ def getReplacementPlayer(position, year, n):
         time.sleep(5)
     
     player = driver.find_element_by_xpath("//table[@id='stats_grid']/tbody/tr[{}]/td[last()]/span".format(n))
-    return float(player.text)
+    try:
+        return float(player.text)
+    except:
+        return 0.0
 
 # function that averages the points above replacement for each position group ranking over the years calculated
 def avgValues(values, positions, years):
