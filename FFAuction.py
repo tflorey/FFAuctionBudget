@@ -5,7 +5,6 @@
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.action_chains import ActionChains
 import time
 from openpyxl import Workbook
 
@@ -100,9 +99,10 @@ def getPreseasonUrl(season, position, iteration):
         "WR": "widereceivers"
     }
     positionId = positionIdMap.get(position)
+    # after the first 10 or so players, there are more pages with urls structured like below
     if iteration > 1:
         url = "https://www.walterfootball.com/fantasy{}{}_{}.php".format(season, positionId, iteration)
-    else:
+    else: # this is the structure of the first page url
         url = "https://www.walterfootball.com/fantasy{}{}.php".format(season, positionId)
 
     return url
@@ -122,33 +122,39 @@ def getPlayerNames(playerNames, maxLength):
         # accounts for error where michael vick's name is removed
         if(text == "QB Eagles No. 7, QB, Eagles. Bye: 7."):
             text = "Michael Vick,"
+        # accounts for error where projected instead of player name
         elif("Projected" in text):
             index += 1
             continue
-        # format the text to have just the first and last name
+        # find the comma after the first and last name
         commaIndex = text.index(",")
+        # include only the first and last name
         playerNames.append(text[0:commaIndex])
         index += 1
         count += 1
     
 def getPlayerPoints(values, year):
+    # page with data for lots of players
     url ="https://www.pro-football-reference.com/years/{}/fantasy.htm".format(year)
     driver.get(url)
     for index in range(len(values)):
         formattedName = formatName(values[index])
         try:
+            # find the fantasy points (25th column) for the player with that name
             pointTotal = driver.find_element_by_xpath("//table[@id='fantasy']/tbody/tr/td[@csk='{}']/following-sibling::td[25]".format(formattedName))
             values[index] = int(pointTotal.text)
         except:
             values[index] = 0
 
 def formatName(name):
+    # turns the name we scraped into the name used in the get points function
     spaceIndex = name.index(" ")
     first = name[:spaceIndex]
     second = name[spaceIndex+1:]
     return second + "," + first
 
 def getReplacementPlayer(position, year, n):
+    # the query that each position maps to in the url
     positionIdMap = {
         "QB": 2,
         "RB": 3,
@@ -157,16 +163,16 @@ def getReplacementPlayer(position, year, n):
     }
     url = "https://fantasydata.com/nfl/fantasy-football-leaders?position={}&season={}&seasontype=1&scope=1&subscope=1&scoringsystem=1&startweek=1&endweek=1&aggregatescope=1&range=1".format(positionIdMap.get(position), year)
     driver.get(url)
+    # page only loads 50 players at first so click load more button if need more
     if(n > 50):
-        # button = driver.find_element_by_xpath("//div[@class='stats-grid-container'//grid-footer//div[@class='col-xs-6 col-sm-4 load-more']/a")
         try:
             button = driver.find_element_by_xpath("//div[@class='stats-grid-container']//grid-footer//div[@class='col-xs-6 col-sm-4 load-more']/a")
         except:
             driver.quit()
             return
-        # button = driver.find_element_by_xpath("//a[@class='pagesize.selected'][2]")
-        # button = driver.find_element_by_xpath("//div[@class='row grid-footer']/div[@class='col-xs-6 col-sm-4 load-more']/a[1]")
+        # use javascript to click the load more button
         driver.execute_script("arguments[0].click();", button)
+        # wait while the page loads
         time.sleep(5)
     
     player = driver.find_element_by_xpath("//table[@id='stats_grid']/tbody/tr[{}]/td[last()]/span".format(n))
@@ -195,21 +201,28 @@ def sumValues(values):
     return total
 
 def exportValues(avgValues, positions):
+    # creates our excel workbook
     wb = Workbook()
     fileDest = "FFAuctionBudget.xlsx"
+    # creates our worksheet
     ws1 = wb.active
     ws1.title = 'Auction Draft Guide'
 
     ws1.cell(column=2,row=1,value="Auction Draft Average Value by Position Ranking")
+    # number the rows so we see the ranking 
     for i in range(1, 85):
         ws1.cell(column = 1, row = i+3, value="{}".format(i))
 
+    # give the position headers
     for col in range(3, len(positions) + 3):
         ws1.cell(column=col, row=3, value="{}".format(positions[col-3]))
+
+    # write all values to the cells
     for col in range(3, len(avgValues) + 3):
         for row in range(4, len(avgValues[col-3]) + 4):
             ws1.cell(column=col, row=row, value="${}".format(avgValues[col-3][row-4]))
     
+    # save the worksheet
     wb.save(fileDest)
 
 
